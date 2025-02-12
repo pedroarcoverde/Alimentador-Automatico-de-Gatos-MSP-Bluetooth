@@ -4,83 +4,54 @@
 #include <string.h>
 
 
-void configurarClock();
-void configurarUART();
-void configurarGPIO();
-void configurarTimer();
-void run_motor();
-int is_time_to_run(int target_hour, int target_min);
-void enviarStringUART(const char *str);
-
-
-// Variáveis globais para controle de tempo
+// Variáveis globais para controles de tempo e buffers
 volatile uint8_t segundos = 0;
 volatile uint8_t minutos = 0;
 volatile uint8_t horas = 0;
 
 volatile uint8_t h1_racao = 10;
 volatile uint8_t h2_racao = 20;
+volatile uint8_t m1_racao = 0;
+volatile uint8_t m2_racao = 0;
 
+#define BUFFER_SIZE 32
+volatile char rxBuffer[BUFFER_SIZE];
+volatile unsigned int rxPtr = 0;
 
 // Variável para armazenar o comando recebido
 char comandoRecebido[10];
 uint8_t indiceComando = 0;
 
 
+void configuraUART() {
+    P3SEL |= BIT3 + BIT4;    //CONFIGURA P3.3 TXD E P3.4 RXD
+    UCA0CTL1 |= UCSWRST;     //COLOCA UART EM RESET
+    UCA0CTL1 |= UCSSEL_2;     //SELECIONAR SMCLK
+    UCA0BR0 |= 104;     //BAUD RATE 9600
+    UCA0BR1 |= 0;     //DESLIGA SEGUNDO CANAL
+    UCA0MCTL |= UCBRS0;     //MODULAÇÃO
+    UCA0CTL1 &= ~UCSWRST;     //SAIR DO RESET
+    UCA0IE |= UCRXIE;     //HABILITA INTERRUÇÃO DE RECEPÇÃO
+}
 
-int main(void) {
-    // Configurações iniciais
-    WDTCTL = WDTPW | WDTHOLD;  // Desabilita o Watchdog Timer
+void configuraEnvioUART() {
+    UCA1CTL1  = UCSWRST;
+	UCA1CTL1 |= UCSSEL__SMCLK;
+	UCA1BRW   =	6;
+	UCA1MCTL = UCOS16 | UCBRF_13;
+	P4SEL    |= BIT4 | BIT5;
+	UCA1CTL1 &= ~UCSWRST;
+	UCA1IE |= UCRXIE;
+}
 
-    configurarClock();
-    configurarGPIO();
-    configurarUART();
-    configurarTimer();
 
-    // Mensagem inicial
-    enviarStringUART("Sistema iniciado.\r\n");
-    enviarStringUART("Digite 'run' para acionar o motor.\r\n");
+// Funçãoo para enviar uma string via UART
+void enviaUART(char * str) {
 
-    while (1) {
-        // Verifica se é hora de acionar o motor no primeiro horario
-        if (is_time_to_run(h1_racao, 0)) {
-            run_motor();
-        }
+    while(*str){
+        while(!(UCA1IFG & UCTXIFG));
+        UCA1TXBUF = *str++;
 
-        // Verifica se é hora de acionar o motor no segundo horario
-        if (is_time_to_run(h2_racao, 0)) {
-            run_motor();
-        }
-
-        // Verifica se há comandos recebidos via Bluetooth
-        if (indiceComando > 0) {
-            comandoRecebido[indiceComando] = '\0';  // Finaliza a string
-            if (strcmp(comandoRecebido, "run") == 0) {
-                run_motor();
-                P1OUT |= BIT0;
-                enviarStringUART("Motor acionado manualmente.\r\n");
-
-            }
-            else if(strcmp(comandoRecebido, "config1") == 0){
-                enviarStringUART("Comando em desenvolvimento.\r\n");
-
-            }
-            else if(strcmp(comandoRecebido, "config2") == 0){
-                enviarStringUART("Comando em desenvolvimento.\r\n");
-
-            }
-            else if(strcmp(comandoRecebido, "status") == 0){
-                enviarStringUART("Comando em desenvolvimento.\r\n");
-
-            }
-            else {
-                enviarStringUART("Comando desconhecido.\r\n");
-
-            }
-            indiceComando = 0;  // Reseta o índice do comando
-        }
-
-        __bis_SR_register(LPM0_bits | GIE);  // Entra em modo de baixo consumo com interrupções habilitadas
     }
 }
 
@@ -151,9 +122,8 @@ void run_motor() {
 }
 
 
-
-// Configuração do Motor
-void configurarGPIO() {
+// Configuraçãoo do Motor
+void configuraGPIO() {
 
     P1DIR |= BIT0;
     P1OUT &= ~BIT0;
@@ -175,65 +145,69 @@ int is_time_to_run(int target_hour, int target_min) {
 }
 
 
-// Função para enviar uma string via UART
-void enviarStringUART(const char *str) {
-    while (*str) {
-        while (!(UCA0IFG & UCTXIFG));  // Espera o buffer de transmissão estar livre
-        UCA0TXBUF = *str++;            // Envia o caractere
-    }
-}
-
-
-// Configuração do clock
-void configurarClock() {
-    // Configura o DCO para 8MHz
-    UCSCTL1 = DCORSEL_5;
-    UCSCTL4 = SELA_2 | SELS_3 | SELM_3;  // ACLK = XT1, SMCLK = DCO, MCLK = DCO
-}
-
-
-void configurarUART() {
-    // Configura os pinos da UART (P1.4 = RX, P1.2 = TX)
-    P1SEL |= BIT4 | BIT2;
-
-    // Configura a UART para 9600 baud rate
-    UCA0CTL1 |= UCSWRST;  // Reseta a UART
-    UCA0CTL1 |= UCSSEL_2; // Usa SMCLK como clock
-    UCA0BR0 = 104;        // 9600 baud rate (1MHz / 9600)
-    UCA0BR1 = 0;
-    UCA0MCTL = UCBRS0;    // Modulação
-    UCA0CTL1 &= ~UCSWRST; // Libera a UART
-
-    // Habilita a interrupção de recepção
-    UCA0IE |= UCRXIE;  // Habilita a interrupção de recepção
-}
-
-
 // Configuração do Timer_A para contar segundos
-void configurarTimer() {
+void configuraTimer() {
     TA0CTL = TASSEL_2 | MC_1 | ID_3;  // Usa SMCLK (8MHz), modo up, divisor /8
     TA0CCR0 = 62500 - 1;              // Conta até 62500 (1 segundo com 8MHz / 8)
     TA0CCTL0 = CCIE;                  // Habilita interrupção do Timer
 }
 
 
-// Interrupção de recepção da UART
-#pragma vector=USCIAB0RX_VECTOR
-__interrupt void USCI0RX_ISR(void) {
-    if (UCA0RXBUF == '\r' || UCA0RXBUF == '\n') {
-        comandoRecebido[indiceComando] = '\0';  // Finaliza o comando
-        indiceComando = 0;                     // Reseta o índice
-    } else {
-        comandoRecebido[indiceComando++] = UCA0RXBUF;  // Armazena o caractere
-        if (indiceComando >= sizeof(comandoRecebido) - 1) {
-            indiceComando = 0;  // Evita overflow
-        }
+
+
+
+#pragma vector = USCI_A1_VRCTOR
+__interrupt void USCI_A1_ISR(void) {
+
+    switch(__even_in_range(UCA1IV, 4)) {
+        case 0: break;
+        case 2:
+            rxBuffer[rxPtr] = UCA1RXBUF;
+            rxPtr = (rxPtr + 1) % BUFFER_SIZE;
+
+        case 4: break;
+        default: break;
     }
+}
+
+// Interrupção de recepção da UART
+#pragma vector = USCI_A0_VECTOR
+__interrupt void USCI_A0_ISR(void){
+    char entrada = UCA0RXBUF;  //LE O CARACTER RECEBIDO
+
+    if (entrada == 'r'){
+		run_motor();
+        enviaUART("Motor acionado manualmente.\r\n");
+
+    } else if (entrada == '1'){
+		enviaUART(entrada);
+		enviaUART(": o comando esta em desenvolvimento.\r\n");
+        // RECEBE A CONFIGURAÇÃO DE HORA PARA A PRIMEIRA RAÇÃO
+
+    } else if (entrada == '2'){
+		enviaUART(entrada);
+		enviaUART(": o comando esta em desenvolvimento.\r\n");
+        // RECEBE A CONFIGURAÇÃO DE MINUTO PARA A PRIMEIRA RAÇÃO
+
+    } else if (entrada == '3'){
+		enviaUART(entrada);
+		enviaUART(": o comando esta em desenvolvimento.\r\n");
+        // RECEBE A CONFIGURAÇÃO DE HORA PARA A SEGUNDA RAÇÃO
+
+    } else if (entrada == '4'){
+		enviaUART(entrada);
+		enviaUART(": o comando esta em desenvolvimento.\r\n");
+        // RECEBE A CONFIGURAÇÃO DE MINUTO PARA A SEGUNDA RAÇÃO
+        
+    } else {
+        enviaUART("Comando desconhecido.\r\n");
+    }
+
 }
 
 
 // Interrupção do Timer_A
-#pragma vector=TIMER0_A0_VECTOR
+#pragma vector = TIMER0_A0_VECTOR
 __interrupt void TIMER0_A0_ISR(void) {
     segundos++;
     if (segundos >= 60) {
@@ -249,3 +223,82 @@ __interrupt void TIMER0_A0_ISR(void) {
     }
     __bic_SR_register_on_exit(LPM0_bits);  // Sai do modo de baixo consumo
 }
+
+
+
+
+
+int main(void) {
+    // Configurações iniciais
+    WDTCTL = WDTPW | WDTHOLD;  // Desabilita o Watchdog Timer
+
+    configuraGPIO();
+    configuraUART();
+    configuraEnvioUART();
+    configuraTimer();
+    __enable_interrupt();           //HABILITA INTERRUPÇÕES GLOBAIS
+
+    // Mensagem inicial
+    enviaUART("Sistema iniciado.\r\n");
+    enviaUART("Digite 'r' para acionar o motor manualmente.\r\n");
+
+    while (1) {
+        // Verifica se é hora de acionar o motor no primeiro horario
+        if (is_time_to_run(h1_racao, m1_racao)) {
+            run_motor();
+        }
+
+        // Verifica se é hora de acionar o motor no segundo horario
+        if (is_time_to_run(h2_racao, m2_racao)) {
+            run_motor();
+        }
+
+        __bis_SR_register(LPM0_bits | GIE);  // Entra em modo de baixo consumo com interrupções habilitadas
+    }
+}
+
+
+
+
+
+        // Verifica se hà comandos recebidos via Bluetooth
+        //if (indiceComando > 0) {
+
+        //    enviaUART(comandoRecebido);
+
+        //     if (strcmp(comandoRecebido, "run") == 0) {
+        //         run_motor();
+        //         enviaUART("Motor acionado manualmente.\r\n");
+
+        //     }
+        //     else if(strcmp(comandoRecebido, "config1") == 0){
+        //         enviaUART("Comando em desenvolvimento.\r\n");
+
+        //     }
+        //     else if(strcmp(comandoRecebido, "config2") == 0){
+        //         enviaUART("Comando em desenvolvimento.\r\n");
+
+        //     }
+        //     else if(strcmp(comandoRecebido, "status") == 0){
+        //         enviaUART("Comando em desenvolvimento.\r\n");
+
+        //     }
+        //     else {
+        //         enviaUART("Comando desconhecido.\r\n");
+
+        //     }
+        //     indiceComando = 0;  // Reseta o índice do comando
+        //     comandoRecebido[indiceComando] = '\0';  // Finaliza a string
+        // }
+
+
+
+    //if (entrada == '\r' || entrada == '\n') {
+    //    comandoRecebido[indiceComando] = '\0';  // Finaliza o comando
+    //    indiceComando = 0;                     // Reseta o índice
+    //} else {
+    //    comandoRecebido[indiceComando++] = entrada;  // Armazena o caractere
+    //    if (indiceComando >= 8) {
+    //        indiceComando = 0;  // Evita overflow
+    //    }
+    //}
