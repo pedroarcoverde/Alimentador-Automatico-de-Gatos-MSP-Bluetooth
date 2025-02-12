@@ -1,0 +1,57 @@
+/*INCLUSÃO DE BIBLIOTECAS*/
+#include <msp430.h> 
+#include <stdint.h>
+#include <stdio.h>
+
+
+/*DECLARAÇÃO DE FUNÇÕES*/
+void leds_config(void);
+void UART_init(void);
+void UART_send(char c);
+
+
+int main(void)
+{
+    WDTCTL = WDTPW | WDTHOLD;   // stop watchdog timer
+    P1DIR |= BIT0;                      //Led1 = P1.0 = Saída
+    P1OUT &= ~BIT0;                     //Led1 = apagado
+    P4DIR |= BIT7;                      //Led2 = P4.7 = Saída
+    P4OUT &= ~BIT7;                     //Led1 apagado
+
+    UART_init();                 //INICIA A UART
+
+    __enable_interrupt();           //HABILITA INTERRUPÇÕES GLOBAIS
+
+    while(1){
+    __bis_SR_register(LPM0_bits + GIE);
+    }
+}
+
+void UART_init(void){
+    P3SEL |= BIT3 + BIT4;    //CONFIGURA P3.3 TXD E P3.4 RXD
+    UCA0CTL1 |= UCSWRST;     //COLOCA UART EM RESET
+    UCA0CTL1 |= UCSSEL_2;     //SELECIONAR SMCLK
+    UCA0BR0 |= 104;     //BAUD RATE 9600
+    UCA0BR1 |= 0;     //DESLIGA SEGUNDO CANAL
+    UCA0MCTL |= UCBRS0;     //MODULAÇÃO
+    UCA0CTL1 &= ~UCSWRST;     //SAIR DO RESET
+    UCA0IE |= UCRXIE;     //HABILITA INTERRUÇÃO DE RECEPÇÃO
+}
+
+#pragma vector=USCI_A0_VECTOR
+__interrupt void USCI_A0_ISR(void){
+    char received = UCA0RXBUF;  //LE O CARACTER RECEBIDO
+    if (received == 'L'){
+        P4OUT |= BIT7;
+    } else if (received == 'D'){
+        P4OUT &= ~BIT7;
+    }
+    else if (received == 'B'){
+        int cont;
+        for(cont=1;cont<=10;cont++){
+            P4OUT ^= BIT7;
+            P1OUT ^= BIT0;
+            _delay_cycles(500000);
+        }
+        }
+}
