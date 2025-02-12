@@ -18,6 +18,9 @@ volatile uint8_t segundos = 0;
 volatile uint8_t minutos = 0;
 volatile uint8_t horas = 0;
 
+volatile uint8_t h1_racao = 10;
+volatile uint8_t h2_racao = 20;
+
 
 // Variável para armazenar o comando recebido
 char comandoRecebido[10];
@@ -39,13 +42,13 @@ int main(void) {
     enviarStringUART("Digite 'run' para acionar o motor.\r\n");
 
     while (1) {
-        // Verifica se é hora de acionar o motor às 10h
-        if (is_time_to_run(10, 0)) {
+        // Verifica se é hora de acionar o motor no primeiro horario
+        if (is_time_to_run(h1_racao, 0)) {
             run_motor();
         }
 
-        // Verifica se é hora de acionar o motor às 20h
-        if (is_time_to_run(20, 0)) {
+        // Verifica se é hora de acionar o motor no segundo horario
+        if (is_time_to_run(h2_racao, 0)) {
             run_motor();
         }
 
@@ -54,9 +57,25 @@ int main(void) {
             comandoRecebido[indiceComando] = '\0';  // Finaliza a string
             if (strcmp(comandoRecebido, "run") == 0) {
                 run_motor();
+                P1OUT |= BIT0;
                 enviarStringUART("Motor acionado manualmente.\r\n");
-            } else {
+
+            }
+            else if(strcmp(comandoRecebido, "config1") == 0){
+                enviarStringUART("Comando em desenvolvimento.\r\n");
+
+            }
+            else if(strcmp(comandoRecebido, "config2") == 0){
+                enviarStringUART("Comando em desenvolvimento.\r\n");
+
+            }
+            else if(strcmp(comandoRecebido, "status") == 0){
+                enviarStringUART("Comando em desenvolvimento.\r\n");
+
+            }
+            else {
                 enviarStringUART("Comando desconhecido.\r\n");
+
             }
             indiceComando = 0;  // Reseta o índice do comando
         }
@@ -136,6 +155,8 @@ void run_motor() {
 // Configuração do Motor
 void configurarGPIO() {
 
+    P1DIR |= BIT0;
+    P1OUT &= ~BIT0;
     P2DIR |= BIT0 | BIT2 | BIT4 | BIT5;
     P2OUT &= ~(BIT0 | BIT2 | BIT4 | BIT5);
       // bobina 1 -> 2.2
@@ -172,10 +193,10 @@ void configurarClock() {
 
 
 void configurarUART() {
-    // Configura os pinos da UART (P1.1 = RX, P1.2 = TX)
-    P1SEL |= BIT1 | BIT2;
+    // Configura os pinos da UART (P1.4 = RX, P1.2 = TX)
+    P1SEL |= BIT4 | BIT2;
 
-    // Configura a UART para 9600 baud rate (ajuste conforme o HM-10)
+    // Configura a UART para 9600 baud rate
     UCA0CTL1 |= UCSWRST;  // Reseta a UART
     UCA0CTL1 |= UCSSEL_2; // Usa SMCLK como clock
     UCA0BR0 = 104;        // 9600 baud rate (1MHz / 9600)
