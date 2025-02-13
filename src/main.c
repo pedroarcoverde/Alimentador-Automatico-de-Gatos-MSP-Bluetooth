@@ -9,49 +9,47 @@ volatile uint8_t segundos = 0;
 volatile uint8_t minutos = 0;
 volatile uint8_t horas = 0;
 
-volatile uint8_t h1_racao = 10;
+volatile uint8_t h1_racao = 0;
 volatile uint8_t h2_racao = 20;
-volatile uint8_t m1_racao = 0;
+volatile uint8_t m1_racao = 5;
 volatile uint8_t m2_racao = 0;
+
+volatile int tamanho_pote = 6000;
 
 #define BUFFER_SIZE 32
 volatile char rxBuffer[BUFFER_SIZE];
 volatile unsigned int rxPtr = 0;
 
-// Variável para armazenar o comando recebido
-char comandoRecebido[10];
-uint8_t indiceComando = 0;
 
-
+// Funçôes para configurar as UARTs
 void configuraUART() {
-    P3SEL |= BIT3 + BIT4;    //CONFIGURA P3.3 TXD E P3.4 RXD
-    UCA0CTL1 |= UCSWRST;     //COLOCA UART EM RESET
-    UCA0CTL1 |= UCSSEL_2;     //SELECIONAR SMCLK
-    UCA0BR0 |= 104;     //BAUD RATE 9600
-    UCA0BR1 |= 0;     //DESLIGA SEGUNDO CANAL
-    UCA0MCTL |= UCBRS0;     //MODULAÇÃO
-    UCA0CTL1 &= ~UCSWRST;     //SAIR DO RESET
-    UCA0IE |= UCRXIE;     //HABILITA INTERRUÇÃO DE RECEPÇÃO
+    P3SEL    |= BIT3 | BIT4;    //CONFIGURA P3.3 TXD E P3.4 RXD
+    UCA0CTL1 |= UCSWRST;        //COLOCA UART EM RESET
+    UCA0CTL1 |= UCSSEL_2;       //SELECIONAR SMCLK
+    UCA0BR0  |= 104;            //BAUD RATE 9600
+    UCA0BR1  |= 0;              //DESLIGA SEGUNDO CANAL
+    UCA0MCTL |= UCBRS0;         //MODULAÇÃO
+    UCA0CTL1 &= ~UCSWRST;       //SAIR DO RESET
+    UCA0IE   |= UCRXIE;         //HABILITA INTERRUÇÃO DE RECEPÇÃO
 }
 
 void configuraEnvioUART() {
     UCA1CTL1  = UCSWRST;
-	UCA1CTL1 |= UCSSEL__SMCLK;
-	UCA1BRW   =	6;
-	UCA1MCTL = UCOS16 | UCBRF_13;
-	P4SEL    |= BIT4 | BIT5;
-	UCA1CTL1 &= ~UCSWRST;
-	UCA1IE |= UCRXIE;
+    UCA1CTL1 |= UCSSEL__SMCLK;
+    UCA1BRW   = 6;
+    UCA1MCTL  = UCOS16 | UCBRF_13;
+    P4SEL    |= BIT4 | BIT5;
+    UCA1CTL1 &= ~UCSWRST;
+    UCA1IE   |= UCRXIE;
 }
 
 
-// Funçãoo para enviar uma string via UART
+// Função para enviar uma string via UART
 void enviaUART(char * str) {
 
     while(*str){
         while(!(UCA1IFG & UCTXIFG));
         UCA1TXBUF = *str++;
-
     }
 }
 
@@ -59,66 +57,47 @@ void enviaUART(char * str) {
 // Função para acionar o motor
 void run_motor() {
 
-      // gira o motor no sentido horário
+      // Gira o motor no sentido horário
       int i;
-      for(i = 0; i<1000; i++)
+      for(i = 0; i<tamanho_pote; i++)
       {
 
         P2OUT |= BIT2;
-        P2OUT &= ~BIT0;
-        P2OUT &= ~BIT5;
-        P2OUT &= ~BIT4;
+        P2OUT &= ~(BIT0 | BIT5 | BIT4);
         __delay_cycles(1000);
 
-        P2OUT |= BIT2;
+        P2OUT |= BIT2 | BIT0;
+        P2OUT &= ~(BIT5 | BIT4);
+        __delay_cycles(1000);
+
+        P2OUT &= ~(BIT2 | BIT5 | BIT4);
         P2OUT |= BIT0;
-        P2OUT &= ~BIT5;
-        P2OUT &= ~BIT4;
         __delay_cycles(1000);
 
-        P2OUT &= ~BIT2;
-        P2OUT |= BIT0;
-        P2OUT &= ~BIT5;
-        P2OUT &= ~BIT4;
+        P2OUT &= ~(BIT2 | BIT4);
+        P2OUT |= BIT0 | BIT5;
         __delay_cycles(1000);
 
-        P2OUT &= ~BIT2;
-        P2OUT |= BIT0;
+        P2OUT &= ~(BIT2 | BIT0 | BIT4);
         P2OUT |= BIT5;
-        P2OUT &= ~BIT4;
         __delay_cycles(1000);
 
-        P2OUT &= ~BIT2;
-        P2OUT &= ~BIT0;
-        P2OUT |= BIT5;
-        P2OUT &= ~BIT4;
+        P2OUT &= ~(BIT2 | BIT0);
+        P2OUT |= BIT5 | BIT4;
         __delay_cycles(1000);
 
-        P2OUT &= ~BIT2;
-        P2OUT &= ~BIT0;
-        P2OUT |= BIT5;
+        P2OUT &= ~(BIT2 | BIT0 | BIT5);
         P2OUT |= BIT4;
         __delay_cycles(1000);
 
-        P2OUT &= ~BIT2;
-        P2OUT &= ~BIT0;
-        P2OUT &= ~BIT5;
-        P2OUT |= BIT4;
-        __delay_cycles(1000);
-
-        P2OUT |= BIT2;
-        P2OUT &= ~BIT0;
-        P2OUT &= ~BIT5;
-        P2OUT |= BIT4;
+        P2OUT |= BIT2 | BIT4;
+        P2OUT &= ~(BIT0 |BIT5);
         __delay_cycles(1000);
 
       }
-  P2OUT |= BIT2;
-  P2OUT &= ~BIT0;
-  P2OUT &= ~BIT5;
-  P2OUT &= ~BIT4;
-  __delay_cycles(1000);
-
+    P2OUT |= BIT2;
+    P2OUT &= ~(BIT0 | BIT5 | BIT4);
+    __delay_cycles(1000);
 }
 
 
@@ -130,9 +109,9 @@ void configuraGPIO() {
     P2DIR |= BIT0 | BIT2 | BIT4 | BIT5;
     P2OUT &= ~(BIT0 | BIT2 | BIT4 | BIT5);
       // bobina 1 -> 2.2
-      //        2 -> 2.0
-      //        3 -> 2.5
-      //        4 -> 2.4
+      // bobina 2 -> 2.0
+      // bobina 3 -> 2.5
+      // bobina 4 -> 2.4
 }
 
 
@@ -153,9 +132,7 @@ void configuraTimer() {
 }
 
 
-
-
-
+// Interrupção de escrita do UART
 #pragma vector = USCI_A1_VRCTOR
 __interrupt void USCI_A1_ISR(void) {
 
@@ -170,35 +147,32 @@ __interrupt void USCI_A1_ISR(void) {
     }
 }
 
+
 // Interrupção de recepção da UART
 #pragma vector = USCI_A0_VECTOR
 __interrupt void USCI_A0_ISR(void){
     char entrada = UCA0RXBUF;  //LE O CARACTER RECEBIDO
 
     if (entrada == 'r'){
-		run_motor();
+        run_motor();
         enviaUART("Motor acionado manualmente.\r\n");
 
     } else if (entrada == '1'){
-		enviaUART(entrada);
-		enviaUART(": o comando esta em desenvolvimento.\r\n");
+        enviaUART(": o comando esta em desenvolvimento.\r\n");
         // RECEBE A CONFIGURAÇÃO DE HORA PARA A PRIMEIRA RAÇÃO
 
     } else if (entrada == '2'){
-		enviaUART(entrada);
-		enviaUART(": o comando esta em desenvolvimento.\r\n");
+        enviaUART(": o comando esta em desenvolvimento.\r\n");
         // RECEBE A CONFIGURAÇÃO DE MINUTO PARA A PRIMEIRA RAÇÃO
 
     } else if (entrada == '3'){
-		enviaUART(entrada);
-		enviaUART(": o comando esta em desenvolvimento.\r\n");
+        enviaUART(": o comando esta em desenvolvimento.\r\n");
         // RECEBE A CONFIGURAÇÃO DE HORA PARA A SEGUNDA RAÇÃO
 
     } else if (entrada == '4'){
-		enviaUART(entrada);
-		enviaUART(": o comando esta em desenvolvimento.\r\n");
+        enviaUART(": o comando esta em desenvolvimento.\r\n");
         // RECEBE A CONFIGURAÇÃO DE MINUTO PARA A SEGUNDA RAÇÃO
-        
+
     } else {
         enviaUART("Comando desconhecido.\r\n");
     }
@@ -226,8 +200,6 @@ __interrupt void TIMER0_A0_ISR(void) {
 
 
 
-
-
 int main(void) {
     // Configurações iniciais
     WDTCTL = WDTPW | WDTHOLD;  // Desabilita o Watchdog Timer
@@ -236,69 +208,28 @@ int main(void) {
     configuraUART();
     configuraEnvioUART();
     configuraTimer();
-    __enable_interrupt();           //HABILITA INTERRUPÇÕES GLOBAIS
+    __enable_interrupt();      //HABILITA INTERRUPÇÕES GLOBAIS
 
     // Mensagem inicial
     enviaUART("Sistema iniciado.\r\n");
     enviaUART("Digite 'r' para acionar o motor manualmente.\r\n");
 
+
+    //run_motor();
     while (1) {
+
         // Verifica se é hora de acionar o motor no primeiro horario
         if (is_time_to_run(h1_racao, m1_racao)) {
             run_motor();
+            enviaUART("Primeira porção diaria despejada\r\n");
         }
 
         // Verifica se é hora de acionar o motor no segundo horario
         if (is_time_to_run(h2_racao, m2_racao)) {
             run_motor();
+            enviaUART("Segunda porção diaria despejada\r\n");
         }
 
         __bis_SR_register(LPM0_bits | GIE);  // Entra em modo de baixo consumo com interrupções habilitadas
     }
 }
-
-
-
-
-
-        // Verifica se hà comandos recebidos via Bluetooth
-        //if (indiceComando > 0) {
-
-        //    enviaUART(comandoRecebido);
-
-        //     if (strcmp(comandoRecebido, "run") == 0) {
-        //         run_motor();
-        //         enviaUART("Motor acionado manualmente.\r\n");
-
-        //     }
-        //     else if(strcmp(comandoRecebido, "config1") == 0){
-        //         enviaUART("Comando em desenvolvimento.\r\n");
-
-        //     }
-        //     else if(strcmp(comandoRecebido, "config2") == 0){
-        //         enviaUART("Comando em desenvolvimento.\r\n");
-
-        //     }
-        //     else if(strcmp(comandoRecebido, "status") == 0){
-        //         enviaUART("Comando em desenvolvimento.\r\n");
-
-        //     }
-        //     else {
-        //         enviaUART("Comando desconhecido.\r\n");
-
-        //     }
-        //     indiceComando = 0;  // Reseta o índice do comando
-        //     comandoRecebido[indiceComando] = '\0';  // Finaliza a string
-        // }
-
-
-
-    //if (entrada == '\r' || entrada == '\n') {
-    //    comandoRecebido[indiceComando] = '\0';  // Finaliza o comando
-    //    indiceComando = 0;                     // Reseta o índice
-    //} else {
-    //    comandoRecebido[indiceComando++] = entrada;  // Armazena o caractere
-    //    if (indiceComando >= 8) {
-    //        indiceComando = 0;  // Evita overflow
-    //    }
-    //}
